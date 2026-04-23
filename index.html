@@ -9,31 +9,32 @@
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
   <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
+    body { margin: 0; font-family: sans-serif; }
+    #map { width: 100%; height: 90vh; }
+    #controls {
+      padding: 10px;
+      background: #f5f5f5;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
     }
-    #map {
-      width: 100%;
-      height: 100vh;
-    }
+    label { font-size: 14px; }
   </style>
 </head>
 <body>
+  <div id="controls"></div>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // 地図初期化
-    const map = L.map('map').setView([35.681236, 139.767125], 10); // 東京付近（適宜変更可）
+    const map = L.map('map').setView([35.681236, 139.767125], 10);
 
-    // タイルレイヤー
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // 種別マッピング
+    // 種別マップ
     const typeMap = {
       "16001": "小学校",
       "16002": "中学校",
@@ -50,34 +51,97 @@
       "16016": "専修学校"
     };
 
-    // GeoJSON読み込み
+    // 色設定
+    const colorMap = {
+      "16001": "red",
+      "16002": "blue",
+      "16003": "purple",
+      "16004": "orange",
+      "16005": "brown",
+      "16006": "darkgreen",
+      "16007": "black",
+      "16011": "green",
+      "16012": "pink",
+      "16013": "cyan",
+      "16014": "yellow",
+      "16015": "gray",
+      "16016": "navy"
+    };
+
+    let geoLayer;
+    let allData;
+    let selectedTypes = new Set(Object.keys(typeMap));
+
+    // チェックボックス生成
+    const controlsDiv = document.getElementById('controls');
+    Object.entries(typeMap).forEach(([code, name]) => {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = true;
+      checkbox.value = code;
+
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          selectedTypes.add(code);
+        } else {
+          selectedTypes.delete(code);
+        }
+        render();
+      });
+
+      label.appendChild(checkbox);
+      label.append(` ${name}`);
+      controlsDiv.appendChild(label);
+    });
+
+    function render() {
+      if (geoLayer) {
+        map.removeLayer(geoLayer);
+      }
+
+      geoLayer = L.geoJSON(allData, {
+        filter: function(feature) {
+          return selectedTypes.has(feature.properties.P29_003);
+        },
+        pointToLayer: function(feature, latlng) {
+          const code = feature.properties.P29_003;
+          const color = colorMap[code] || 'black';
+
+          return L.circleMarker(latlng, {
+            radius: 6,
+            fillColor: color,
+            color: color,
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          });
+        },
+        onEachFeature: function (feature, layer) {
+          const props = feature.properties;
+          const name = props.P29_004 || '名称不明';
+          const address = props.P29_005 || '住所不明';
+          const typeName = typeMap[props.P29_003] || '不明';
+
+          layer.bindPopup(`
+            <strong>${name}</strong><br>
+            種別: ${typeName}<br>
+            住所: ${address}
+          `);
+        }
+      }).addTo(map);
+    }
+
     fetch('./P29-23_13.geojson')
-      .then(response => response.json())
+      .then(res => res.json())
       .then(data => {
-        const geoLayer = L.geoJSON(data, {
-          onEachFeature: function (feature, layer) {
-            const props = feature.properties;
-            const name = props.P29_004 || '名称不明';
-            const address = props.P29_005 || '住所不明';
-            const typeCode = props.P29_003;
-            const typeName = typeMap[typeCode] || '不明';
-
-            const popupContent = `
-              <strong>${name}</strong><br>
-              種別: ${typeName}<br>
-              住所: ${address}
-            `;
-
-            layer.bindPopup(popupContent);
-          }
-        }).addTo(map);
-
-        // 表示範囲をデータに合わせる
-        map.fitBounds(geoLayer.getBounds());
+        allData = data;
+        render();
+        map.fitBounds(L.geoJSON(data).getBounds());
       })
       .catch(err => {
-        console.error('GeoJSONの読み込みに失敗:', err);
-        alert('GeoJSONファイルの読み込みに失敗しました。');
+        console.error(err);
+        alert('GeoJSON読み込み失敗');
       });
   </script>
 </body>
