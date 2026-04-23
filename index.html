@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>施設マップ表示</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+    }
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // 地図初期化
+    const map = L.map('map').setView([35.681236, 139.767125], 10); // 東京付近（適宜変更可）
+
+    // タイルレイヤー
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 種別マッピング
+    const typeMap = {
+      "16001": "小学校",
+      "16002": "中学校",
+      "16003": "中等教育学校",
+      "16004": "高等学校",
+      "16005": "高等専門学校",
+      "16006": "短期大学",
+      "16007": "大学",
+      "16011": "幼稚園",
+      "16012": "特別支援学校",
+      "16013": "認定こども園",
+      "16014": "義務教育学校",
+      "16015": "各種学校",
+      "16016": "専修学校"
+    };
+
+    // GeoJSON読み込み
+    fetch('./P29-23_13.geojson')
+      .then(response => response.json())
+      .then(data => {
+        const geoLayer = L.geoJSON(data, {
+          onEachFeature: function (feature, layer) {
+            const props = feature.properties;
+            const name = props.P29_004 || '名称不明';
+            const address = props.P29_005 || '住所不明';
+            const typeCode = props.P29_003;
+            const typeName = typeMap[typeCode] || '不明';
+
+            const popupContent = `
+              <strong>${name}</strong><br>
+              種別: ${typeName}<br>
+              住所: ${address}
+            `;
+
+            layer.bindPopup(popupContent);
+          }
+        }).addTo(map);
+
+        // 表示範囲をデータに合わせる
+        map.fitBounds(geoLayer.getBounds());
+      })
+      .catch(err => {
+        console.error('GeoJSONの読み込みに失敗:', err);
+        alert('GeoJSONファイルの読み込みに失敗しました。');
+      });
+  </script>
+</body>
+</html>
